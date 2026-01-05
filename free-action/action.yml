@@ -1,0 +1,19 @@
+name: Lint Autofix (Community)
+description: Run Prettier and ESLint with suggested fixes as a PR comment.
+author: Community
+runs:
+  using: node20
+  main: src/index.js
+inputs:
+  max_files:
+    description: Maximum number of files to list in the PR comment.
+    default: "10"
+  run_eslint:
+    description: Whether to run ESLint --fix.
+    default: "true"
+  run_prettier:
+    description: Whether to run Prettier --write.
+    default: "true"
+  strict:
+    description: Fail the action on command errors.
+    default: "false"
