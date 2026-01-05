@@ -18,12 +18,15 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies
+      - name: Install demo dependencies
         run: |
           npm --prefix demo install
           ln -sfn demo/node_modules node_modules
 
+      - name: Install action dependencies
+        run: npm --prefix free-action install
+
       - name: Run Lint Autofix
-        uses: Sho-hei0101/lint-autofix-community/free-action@v1
+        uses: ./free-action
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
