@@ -1,0 +1,12 @@
+{
+  "name": "lint-autofix-community-action",
+  "version": "1.0.0",
+  "description": "Community GitHub Action that suggests ESLint/Prettier fixes in PR comments.",
+  "main": "src/index.js",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.10.1",
+    "@actions/exec": "^1.1.1",
+    "@actions/github": "^6.0.0"
+  }
+}
