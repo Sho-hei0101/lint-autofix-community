@@ -25,4 +25,4 @@ jobs:
       - name: Confirm diff produced
         run: |
           git diff --name-only
-          git diff --name-only | rg -q 'demo/src/bad-format.js'
+          git diff --name-only | grep -q 'demo/src/bad-format.js'
