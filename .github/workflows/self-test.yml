@@ -16,6 +16,8 @@ jobs:
         run: |
           npm --prefix demo install
           ln -sfn demo/node_modules node_modules
+      - name: Install action dependencies
+        run: npm --prefix free-action install
       - name: Run community action
         uses: ./free-action
         env:
