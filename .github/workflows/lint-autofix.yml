@@ -18,17 +18,14 @@ jobs:
         with:
           node-version: 20
 
-      # demo依存（今回の検証用）
       - name: Install demo dependencies
         run: |
           npm --prefix demo install
           ln -sfn demo/node_modules node_modules
 
-      # ★これが必要（Action依存を入れる）
       - name: Install action dependencies
         run: npm --prefix free-action install
 
-      # ★ローカルActionとして実行
       - name: Run Lint Autofix
         uses: ./free-action
         env:
