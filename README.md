@@ -22,15 +22,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Install dependencies
-        run: |
-          npm --prefix demo install
-          ln -sfn demo/node_modules node_modules
       - name: Run Lint Autofix
         uses: Sho-hei0101/lint-autofix-community/free-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+This action runs your locally installed `eslint` and `prettier`. If the tools
+are missing, it will post a comment explaining what is needed.
+
+## Strict mode
+
+By default (`strict: "false"`), the workflow stays green even if ESLint or
+Prettier fail. To fail the workflow on command errors, set:
+
+```yaml
+      - name: Run Lint Autofix
+        uses: Sho-hei0101/lint-autofix-community/free-action@v1
+        with:
+          strict: "true"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -64,4 +74,7 @@ npm run build
    - Optionally add a full version tag: `git tag v1.0.0`
 3. Push tags: `git push origin v1 --force` and `git push origin v1.0.0`
 
-Pro adds auto-commit and org-wide policy.
+## Community vs Pro
+
+- Community: comment-only suggestions, limited usage
+- Pro: auto-commit fixes, unlimited runs, org-wide policy, reporting

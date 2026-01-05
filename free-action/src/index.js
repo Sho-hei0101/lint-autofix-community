@@ -5,6 +5,7 @@ const github = require('@actions/github');
 const HEADER = 'Lint Autofix (Community)';
 const COMMENT_TAG = '<!-- lint-autofix-community -->';
 const DIFF_LIMIT = 6000;
+const OUTPUT_LIMIT = 800;
 
 function parseBoolean(value, defaultValue) {
   if (value === undefined || value === '') return defaultValue;
@@ -71,8 +72,44 @@ function buildDiffSection(diffText) {
   return `${diffText.slice(0, DIFF_LIMIT)}\n...diff truncated...`;
 }
 
-function buildComment({ files, diff, missingTools, errors, maxFiles, noDiff }) {
+function truncateOutput(text) {
+  if (!text) return '';
+  if (text.length <= OUTPUT_LIMIT) {
+    return text.trim();
+  }
+  return `${text.slice(0, OUTPUT_LIMIT)}\n...output truncated...`.trim();
+}
+
+function formatCommandIssues(results) {
+  const issues = [];
+  results.forEach((result) => {
+    if (result.skipped) return;
+    if (result.exitCode === 0) return;
+    if (result.missingTool) {
+      issues.push(`- ${result.name} failed: missing tool`);
+      return;
+    }
+    issues.push(`- ${result.name} failed (exit ${result.exitCode})`);
+    const combined = truncateOutput(`${result.stdout}\n${result.stderr}`.trim());
+    if (combined) {
+      combined.split('\n').forEach((line) => {
+        issues.push(`  - ${line}`);
+      });
+    }
+  });
+  return issues;
+}
+
+function buildComment({ files, diff, missingTools, commandResults, maxFiles }) {
   const lines = [COMMENT_TAG, `## ${HEADER}`];
+
+  const issues = formatCommandIssues(commandResults);
+  lines.push('', 'Command issues:');
+  if (issues.length > 0) {
+    lines.push(...issues);
+  } else {
+    lines.push('- None');
+  }
 
   if (missingTools.length > 0) {
     lines.push(
@@ -82,20 +119,14 @@ function buildComment({ files, diff, missingTools, errors, maxFiles, noDiff }) {
     );
   }
 
-  if (errors.length > 0) {
-    lines.push('', 'Command issues:', ...errors.map((err) => `- ${err}`));
-  }
-
-  if (noDiff) {
-    lines.push('', 'No fixes needed.');
-    return lines.join('\n');
-  }
-
+  lines.push('', `Changed files (showing up to ${maxFiles}):`);
   if (files.length > 0) {
-    lines.push('', `Changed files (showing up to ${maxFiles}):`, ...files.map((file) => `- ${file}`));
+    lines.push(...files.map((file) => `- ${file}`));
+  } else {
+    lines.push('- (none)');
   }
 
-  lines.push('', '```diff', diff, '```');
+  lines.push('', '```diff', diff || 'No changes produced.', '```');
   lines.push(
     '',
     '**Community vs Pro**',
@@ -155,17 +186,17 @@ async function run() {
     const strict = parseBoolean(core.getInput('strict'), false);
 
     const missingTools = [];
-    const errors = [];
+    const commandResults = [];
 
     if (runPrettier) {
       const result = await runCommand('npx', ['--no-install', 'prettier', '--write', '.']);
-      if (result.exitCode !== 0) {
-        if (looksMissingTool(result.stderr + result.stdout)) {
-          missingTools.push('prettier');
-        } else {
-          errors.push('Prettier failed. Check logs.');
-        }
+      const missingTool = result.exitCode !== 0 && looksMissingTool(result.stderr + result.stdout);
+      if (missingTool) {
+        missingTools.push('prettier');
       }
+      commandResults.push({ name: 'prettier', ...result, missingTool });
+    } else {
+      commandResults.push({ name: 'prettier', skipped: true });
     }
 
     if (runEslint) {
@@ -175,13 +206,13 @@ async function run() {
         eslintArgs.push('--config', eslintConfig);
       }
       const result = await runCommand('npx', eslintArgs);
-      if (result.exitCode !== 0) {
-        if (looksMissingTool(result.stderr + result.stdout)) {
-          missingTools.push('eslint');
-        } else {
-          errors.push('ESLint failed. Check logs.');
-        }
+      const missingTool = result.exitCode !== 0 && looksMissingTool(result.stderr + result.stdout);
+      if (missingTool) {
+        missingTools.push('eslint');
       }
+      commandResults.push({ name: 'eslint', ...result, missingTool });
+    } else {
+      commandResults.push({ name: 'eslint', skipped: true });
     }
 
     const diffResult = await runCommand('git', ['diff']);
@@ -200,35 +231,21 @@ async function run() {
     const repo = github.context.repo;
     const issueNumber = github.context.payload.pull_request.number;
 
-    if (!hasDiff && missingTools.length === 0 && errors.length === 0) {
-      const existing = await findExistingComment(octokit, repo, issueNumber);
-      if (existing) {
-        const body = buildComment({
-          files: [],
-          diff: '',
-          missingTools: [],
-          errors: [],
-          maxFiles,
-          noDiff: true,
-        });
-        await upsertComment(octokit, repo, issueNumber, body);
-      }
-      return;
-    }
-
     const diffSection = hasDiff ? buildDiffSection(diffText) : '';
     const body = buildComment({
       files,
       diff: diffSection,
       missingTools,
-      errors,
+      commandResults,
       maxFiles,
-      noDiff: !hasDiff,
     });
 
     await upsertComment(octokit, repo, issueNumber, body);
 
-    if (strict && (missingTools.length > 0 || errors.length > 0)) {
+    const commandFailed = commandResults.some(
+      (result) => !result.skipped && result.exitCode !== 0
+    );
+    if (strict && commandFailed) {
       core.setFailed('Strict mode enabled and lint commands reported issues.');
     }
   } catch (error) {
