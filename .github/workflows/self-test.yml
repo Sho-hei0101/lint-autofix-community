@@ -18,8 +18,10 @@ jobs:
         run: |
           npm --prefix demo install
           ln -sfn demo/node_modules node_modules
-      - name: Install action dependencies
-        run: npm --prefix free-action install
+      - name: Verify dist is committed and action.yml points to it
+        run: |
+          grep -q 'main: dist/index.js' free-action/action.yml
+          git ls-files --error-unmatch free-action/dist/index.js
       - name: Run community action
         uses: ./free-action
         env:

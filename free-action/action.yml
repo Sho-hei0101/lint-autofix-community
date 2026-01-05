@@ -3,7 +3,7 @@ description: Run Prettier and ESLint with suggested fixes as a PR comment.
 author: Community
 runs:
   using: node20
-  main: src/index.js
+  main: dist/index.js
 inputs:
   max_files:
     description: Maximum number of files to list in the PR comment.

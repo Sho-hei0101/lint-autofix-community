@@ -24,6 +24,6 @@ jobs:
           ln -sfn demo/node_modules node_modules
 
       - name: Run Lint Autofix
-        uses: Sho-hei0101/lint-autofix-community/free-action@v1
+        uses: ./free-action
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
