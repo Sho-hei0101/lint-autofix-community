@@ -20,6 +20,12 @@ jobs:
           ln -sfn demo/node_modules node_modules
       - name: Install action dependencies
         run: npm --prefix free-action install
+      - name: Build action dist
+        run: npm --prefix free-action run build
+      - name: Verify dist is committed and action.yml points to it
+        run: |
+          grep -q 'main: dist/index.js' free-action/action.yml
+          git diff --exit-code free-action/dist
       - name: Run community action
         uses: ./free-action
         env:
