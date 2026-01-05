@@ -1,0 +1,29 @@
+name: Lint Autofix (Community)
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  lint-autofix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: |
+          npm --prefix demo install
+          ln -sfn demo/node_modules node_modules
+
+      - name: Run Lint Autofix
+        uses: Sho-hei0101/lint-autofix-community/free-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
