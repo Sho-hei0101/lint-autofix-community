@@ -1,0 +1,9 @@
+{
+  "name": "lint-autofix-demo-with-lock",
+  "version": "1.0.0",
+  "private": true,
+  "devDependencies": {
+    "eslint": "^9.8.0",
+    "prettier": "^3.3.3"
+  }
+}

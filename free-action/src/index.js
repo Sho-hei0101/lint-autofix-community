@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const { spawn } = require('child_process');
 
 const core = {
@@ -154,6 +155,7 @@ const HEADER = 'Lint Autofix (Community)';
 const COMMENT_TAG = '<!-- lint-autofix-community -->';
 const DIFF_LIMIT = 6000;
 const OUTPUT_LIMIT = 800;
+const ESLINT_CONFIGS = ['eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs'];
 
 function parseBoolean(value, defaultValue) {
   if (value === undefined || value === '') return defaultValue;
@@ -188,29 +190,46 @@ function looksMissingTool(output) {
   );
 }
 
-async function findEslintConfig() {
-  const result = await runCommand('git', ['ls-files']);
-  if (result.exitCode !== 0) return null;
-  const candidates = result.stdout
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .filter((file) =>
-      [
-        'eslint.config.js',
-        '.eslintrc',
-        '.eslintrc.js',
-        '.eslintrc.cjs',
-        '.eslintrc.json',
-        '.eslintrc.yaml',
-        '.eslintrc.yml',
-      ].includes(file)
-    );
+function resolveWorkingDirectory() {
+  const input = core.getInput('working_directory') || '.';
+  const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
+  return path.resolve(workspace, input);
+}
 
-  if (candidates.length === 1) {
-    return candidates[0];
+function formatWorkingDirectory(workingDirectory) {
+  const workspace = process.env.GITHUB_WORKSPACE || process.cwd();
+  const relative = path.relative(workspace, workingDirectory);
+  return relative === '' ? '.' : relative;
+}
+
+function readPackageJson(workingDirectory) {
+  const packagePath = path.join(workingDirectory, 'package.json');
+  if (!fs.existsSync(packagePath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  } catch (error) {
+    core.warning(`Failed to parse package.json in ${workingDirectory}: ${error.message}`);
+    return null;
   }
-  return null;
+}
+
+function hasDependency(pkg, name) {
+  if (!pkg) return false;
+  const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+  return Boolean(deps && deps[name]);
+}
+
+function findEslintConfig(workingDirectory) {
+  return ESLINT_CONFIGS.find((config) =>
+    fs.existsSync(path.join(workingDirectory, config))
+  );
+}
+
+async function isNpxToolAvailable(tool, workingDirectory) {
+  const result = await runCommand('npx', ['--no-install', tool, '--version'], {
+    cwd: workingDirectory,
+  });
+  return result.exitCode === 0;
 }
 
 function buildDiffSection(diffText) {
@@ -228,43 +247,64 @@ function truncateOutput(text) {
   return `${text.slice(0, OUTPUT_LIMIT)}\n...output truncated...`.trim();
 }
 
-function formatCommandIssues(results) {
-  const issues = [];
-  results.forEach((result) => {
-    if (result.skipped) return;
-    if (result.exitCode === 0) return;
-    if (result.missingTool) {
-      issues.push(`- ${result.name} failed: missing tool`);
-      return;
-    }
-    issues.push(`- ${result.name} failed (exit ${result.exitCode})`);
-    const combined = truncateOutput(`${result.stdout}\n${result.stderr}`.trim());
-    if (combined) {
-      combined.split('\n').forEach((line) => {
-        issues.push(`  - ${line}`);
-      });
-    }
-  });
-  return issues;
+function logCommandOutput(name, result) {
+  if (!result || result.exitCode === 0) return;
+  const combined = truncateOutput(`${result.stdout}\n${result.stderr}`.trim());
+  if (combined) {
+    core.info(`${name} output:\n${combined}`);
+  }
 }
 
-function buildComment({ files, diff, missingTools, commandResults, maxFiles }) {
-  const lines = [COMMENT_TAG, `## ${HEADER}`];
-
-  const issues = formatCommandIssues(commandResults);
-  lines.push('', 'Command issues:');
-  if (issues.length > 0) {
-    lines.push(...issues);
-  } else {
-    lines.push('- None');
+function formatCommandSummary(result) {
+  if (result.skipped) {
+    return [`- ${result.name}: skipped${result.reason ? ` (${result.reason})` : ''}`];
   }
 
-  if (missingTools.length > 0) {
-    lines.push(
-      '',
-      `Missing tools: ${missingTools.join(', ')}`,
-      'Install locally with: `npm i -D eslint prettier` (or your preferred package manager).'
-    );
+  if (result.exitCode === 0) {
+    return [`- ${result.name}: succeeded${result.note ? ` (${result.note})` : ''}`];
+  }
+
+  if (result.missingTool) {
+    return [`- ${result.name}: failed (missing tool)`];
+  }
+
+  const lines = [`- ${result.name}: failed (exit ${result.exitCode})`];
+  const combined = truncateOutput(`${result.stdout}\n${result.stderr}`.trim());
+  if (combined) {
+    combined.split('\n').forEach((line) => {
+      lines.push(`  - ${line}`);
+    });
+  }
+  return lines;
+}
+
+function buildComment({
+  files,
+  diff,
+  commandResults,
+  maxFiles,
+  whatHappened,
+  howToFix,
+  workingDirectory,
+}) {
+  const lines = [COMMENT_TAG, `## ${HEADER}`];
+
+  lines.push('', `**Working directory:** \`${workingDirectory}\``);
+
+  lines.push('', '### What happened');
+  if (whatHappened.length > 0) {
+    lines.push(...whatHappened);
+  } else {
+    commandResults.forEach((result) => {
+      lines.push(...formatCommandSummary(result));
+    });
+  }
+
+  lines.push('', '### How to fix');
+  if (howToFix.length > 0) {
+    lines.push(...howToFix.map((item) => `- ${item}`));
+  } else {
+    lines.push('- No action required.');
   }
 
   lines.push('', `Changed files (showing up to ${maxFiles}):`);
@@ -332,42 +372,164 @@ async function run() {
     const runEslint = parseBoolean(core.getInput('run_eslint'), true);
     const runPrettier = parseBoolean(core.getInput('run_prettier'), true);
     const strict = parseBoolean(core.getInput('strict'), false);
+    const workingDirectory = resolveWorkingDirectory();
+    const workingDirectoryLabel = formatWorkingDirectory(workingDirectory);
+    const repoRoot = process.env.GITHUB_WORKSPACE || process.cwd();
 
-    const missingTools = [];
     const commandResults = [];
+    const whatHappened = [];
+    const howToFixSet = new Set();
+    const failures = [];
+    let installFailed = false;
+
+    const packageJson = readPackageJson(workingDirectory);
+    const hasPackageJson = Boolean(packageJson);
+    if (!hasPackageJson) {
+      const message = `No package.json found in ${workingDirectoryLabel}.`;
+      whatHappened.push(`- ${message} Skipping npm install and lint.`);
+      howToFixSet.add(
+        'Set `working_directory` to the folder that contains your package.json.'
+      );
+      commandResults.push({
+        name: 'npm install',
+        skipped: true,
+        reason: 'package.json missing',
+      });
+      if (strict) {
+        failures.push(message);
+      }
+    } else {
+      const lockfilePath = path.join(workingDirectory, 'package-lock.json');
+      const hasLockfile = fs.existsSync(lockfilePath);
+      const npmArgs = hasLockfile
+        ? ['ci']
+        : ['install', '--no-audit', '--no-fund'];
+      const npmLabel = hasLockfile ? 'npm ci' : 'npm install';
+      const note = hasLockfile
+        ? 'using package-lock.json'
+        : 'no package-lock.json found; used npm install --no-audit --no-fund';
+      const result = await runCommand('npm', npmArgs, { cwd: workingDirectory });
+      const missingTool = result.exitCode !== 0 && looksMissingTool(result.stderr + result.stdout);
+      logCommandOutput(npmLabel, result);
+      commandResults.push({ name: npmLabel, ...result, missingTool, note });
+      whatHappened.push(...formatCommandSummary(commandResults[commandResults.length - 1]));
+      if (!hasLockfile) {
+        howToFixSet.add('Commit a package-lock.json to enable faster, repeatable npm ci installs.');
+      }
+      if (result.exitCode !== 0) {
+        installFailed = true;
+        failures.push('npm install failed');
+        howToFixSet.add('Fix the npm install errors shown in the logs for your project.');
+      }
+    }
 
     if (runPrettier) {
-      const result = await runCommand('npx', ['--no-install', 'prettier', '--write', '.']);
-      const missingTool = result.exitCode !== 0 && looksMissingTool(result.stderr + result.stdout);
-      if (missingTool) {
-        missingTools.push('prettier');
+      if (!hasPackageJson) {
+        commandResults.push({
+          name: 'prettier',
+          skipped: true,
+          reason: 'package.json missing',
+        });
+        whatHappened.push('- prettier: skipped (package.json missing)');
+      } else if (installFailed) {
+        commandResults.push({
+          name: 'prettier',
+          skipped: true,
+          reason: 'npm install failed',
+        });
+        whatHappened.push('- prettier: skipped (npm install failed)');
+      } else if (
+        hasDependency(packageJson, 'prettier') ||
+        (await isNpxToolAvailable('prettier', workingDirectory))
+      ) {
+        const result = await runCommand('npx', ['--no-install', 'prettier', '--write', '.'], {
+          cwd: workingDirectory,
+        });
+        const missingTool =
+          result.exitCode !== 0 && looksMissingTool(result.stderr + result.stdout);
+        logCommandOutput('prettier', result);
+        if (missingTool) {
+          howToFixSet.add('Install Prettier (e.g., `npm i -D prettier`) before running this action.');
+        }
+        commandResults.push({ name: 'prettier', ...result, missingTool });
+        whatHappened.push(...formatCommandSummary(commandResults[commandResults.length - 1]));
+        if (result.exitCode !== 0) {
+          failures.push('prettier failed');
+        }
+      } else {
+        commandResults.push({
+          name: 'prettier',
+          skipped: true,
+          reason: 'prettier not installed',
+        });
+        whatHappened.push('- prettier: skipped (prettier not installed)');
+        howToFixSet.add('Add Prettier to devDependencies to enable formatting fixes.');
       }
-      commandResults.push({ name: 'prettier', ...result, missingTool });
     } else {
-      commandResults.push({ name: 'prettier', skipped: true });
+      commandResults.push({ name: 'prettier', skipped: true, reason: 'disabled by input' });
+      whatHappened.push('- prettier: skipped (disabled by input)');
     }
 
     if (runEslint) {
-      const eslintConfig = await findEslintConfig();
-      const eslintArgs = ['--no-install', 'eslint', '--fix', '.'];
-      if (eslintConfig) {
-        eslintArgs.push('--config', eslintConfig);
+      if (!hasPackageJson) {
+        commandResults.push({
+          name: 'eslint',
+          skipped: true,
+          reason: 'package.json missing',
+        });
+        whatHappened.push('- eslint: skipped (package.json missing)');
+      } else if (installFailed) {
+        commandResults.push({
+          name: 'eslint',
+          skipped: true,
+          reason: 'npm install failed',
+        });
+        whatHappened.push('- eslint: skipped (npm install failed)');
+      } else {
+        const eslintConfig = findEslintConfig(workingDirectory);
+        if (!eslintConfig) {
+          const message = `eslint.config.(js|mjs|cjs) not found in ${workingDirectoryLabel}.`;
+          commandResults.push({
+            name: 'eslint',
+            skipped: true,
+            reason: 'eslint config missing',
+          });
+          whatHappened.push(`- eslint: skipped (${message})`);
+          howToFixSet.add(
+            'Add an eslint.config.js/mjs/cjs file (ESLint v9 flat config) in your working directory.'
+          );
+          if (strict) {
+            failures.push(message);
+          }
+        } else {
+          const result = await runCommand('npx', ['--no-install', 'eslint', '--fix', '.'], {
+            cwd: workingDirectory,
+          });
+          const missingTool =
+            result.exitCode !== 0 && looksMissingTool(result.stderr + result.stdout);
+          logCommandOutput('eslint', result);
+          if (missingTool) {
+            howToFixSet.add('Install ESLint (e.g., `npm i -D eslint`) before running this action.');
+          }
+          commandResults.push({ name: 'eslint', ...result, missingTool });
+          whatHappened.push(...formatCommandSummary(commandResults[commandResults.length - 1]));
+          if (result.exitCode !== 0) {
+            failures.push('eslint failed');
+          }
+        }
       }
-      const result = await runCommand('npx', eslintArgs);
-      const missingTool = result.exitCode !== 0 && looksMissingTool(result.stderr + result.stdout);
-      if (missingTool) {
-        missingTools.push('eslint');
-      }
-      commandResults.push({ name: 'eslint', ...result, missingTool });
     } else {
-      commandResults.push({ name: 'eslint', skipped: true });
+      commandResults.push({ name: 'eslint', skipped: true, reason: 'disabled by input' });
+      whatHappened.push('- eslint: skipped (disabled by input)');
     }
 
-    const diffResult = await runCommand('git', ['diff']);
+    const diffResult = await runCommand('git', ['diff'], { cwd: repoRoot });
     const diffText = diffResult.stdout.trim();
     const hasDiff = diffText.length > 0;
 
-    const diffFilesResult = await runCommand('git', ['diff', '--name-only']);
+    const diffFilesResult = await runCommand('git', ['diff', '--name-only'], {
+      cwd: repoRoot,
+    });
     const allFiles = diffFilesResult.stdout
       .split('\n')
       .map((file) => file.trim())
@@ -383,18 +545,17 @@ async function run() {
     const body = buildComment({
       files,
       diff: diffSection,
-      missingTools,
       commandResults,
       maxFiles,
+      whatHappened,
+      howToFix: Array.from(howToFixSet),
+      workingDirectory: workingDirectoryLabel,
     });
 
     await upsertComment(octokit, repo, issueNumber, body);
 
-    const commandFailed = commandResults.some(
-      (result) => !result.skipped && result.exitCode !== 0
-    );
-    if (strict && commandFailed) {
-      core.setFailed('Strict mode enabled and lint commands reported issues.');
+    if (strict && failures.length > 0) {
+      core.setFailed(`Strict mode enabled: ${failures.join('; ')}`);
     }
   } catch (error) {
     if (parseBoolean(core.getInput('strict'), false)) {
