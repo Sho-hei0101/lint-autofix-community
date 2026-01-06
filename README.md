@@ -30,6 +30,7 @@ jobs:
 
 This action runs your locally installed `eslint` and `prettier`. If the tools
 are missing, it will post a comment explaining what is needed.
+It works even when your repository does not include a lockfile.
 
 ## Strict mode
 
