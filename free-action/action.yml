@@ -1,9 +1,15 @@
 name: Lint Autofix (Community)
 description: Run Prettier and ESLint with suggested fixes as a PR comment.
 author: Community
+
+branding:
+  icon: check-square
+  color: green
+
 runs:
   using: node20
   main: dist/index.js
+
 inputs:
   max_files:
     description: Maximum number of files to list in the PR comment.
@@ -20,6 +26,3 @@ inputs:
   working_directory:
     description: Path to the working directory that contains the package.json.
     default: "."
-    branding:
-  icon: check-square
-  color: green
