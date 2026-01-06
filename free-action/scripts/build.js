@@ -1,11 +1,9 @@
-const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
 const rootDir = path.resolve(__dirname, '..');
 const srcFile = path.join(rootDir, 'src', 'index.js');
 const distDir = path.join(rootDir, 'dist');
-const distFile = path.join(distDir, 'index.js');
 
 function buildWithNcc() {
   const nccCli = require.resolve('@vercel/ncc/dist/ncc/cli.js');
@@ -14,13 +12,9 @@ function buildWithNcc() {
   });
 }
 
-function fallbackCopy() {
-  fs.mkdirSync(distDir, { recursive: true });
-  fs.copyFileSync(srcFile, distFile);
-}
-
 try {
   buildWithNcc();
 } catch (error) {
-  fallbackCopy();
+  console.error('Failed to build with @vercel/ncc. Run `npm install` in free-action.');
+  throw error;
 }

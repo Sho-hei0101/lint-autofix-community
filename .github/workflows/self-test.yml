@@ -16,6 +16,7 @@ jobs:
           node-version: 20
       - name: Build action dist
         run: |
+          npm --prefix free-action install
           npm --prefix free-action run build
           git diff --exit-code free-action/dist/index.js
       - name: Verify dist is committed and action.yml points to it
