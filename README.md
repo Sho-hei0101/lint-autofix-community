@@ -5,7 +5,7 @@ Comment-only ESLint/Prettier autofix suggestions for pull requests.
 - Posts a single PR comment with a diff
 - Never pushes commits
 
-## Install
+## Quickstart
 
 ```yaml
 name: Lint Autofix (Community)
@@ -22,15 +22,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
       - name: Run Lint Autofix
         uses: Sho-hei0101/lint-autofix-community/free-action@v1
+        with:
+          working_directory: .
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-This action runs your locally installed `eslint` and `prettier`. If the tools
-are missing, it will post a comment explaining what is needed.
-It works even when your repository does not include a lockfile.
+## Requirements
+- A `package.json` in the working directory (defaults to the repo root).
+- ESLint and/or Prettier installed in that package (devDependencies recommended).
+- Node.js 20 (use `actions/setup-node`).
+- `GITHUB_TOKEN` with `pull-requests: write` and `issues: write`.
+
+This action runs your project’s local `eslint`/`prettier` via `npx --no-install`.
+If the tools are missing, it will post a comment explaining what is needed.
+It works even when your repository does not include a lockfile (falls back to `npm install`).
 
 ## Strict mode
 
@@ -45,6 +57,24 @@ Prettier fail. To fail the workflow on command errors, set:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+## Troubleshooting
+
+### Missing package-lock.json
+If you do not commit a `package-lock.json`, the action will fall back to
+`npm install --no-audit --no-fund`. For faster, repeatable installs, commit a
+lockfile.
+
+### ESLint v9 requires eslint.config.*
+If you are on ESLint v9 and do not have `eslint.config.js`/`mjs`/`cjs` in the
+working directory, ESLint will be skipped (or fail in `strict: "true"`). Add a
+flat config file to enable ESLint fixes.
+
+### Permissions errors
+Ensure your workflow has:
+- `contents: read`
+- `pull-requests: write`
+- `issues: write`
 
 ## Permissions
 

@@ -7,7 +7,7 @@ permissions:
   issues: write
 
 jobs:
-  community-action:
+  verify-dist:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,18 +16,28 @@ jobs:
           node-version: 20
       - name: Build action dist
         run: |
+          npm --prefix free-action install
           npm --prefix free-action run build
           git diff --exit-code free-action/dist/index.js
-      - name: Install demo dependencies
-        run: |
-          npm --prefix demo install
-          ln -sfn demo/node_modules node_modules
       - name: Verify dist is committed and action.yml points to it
         run: |
           grep -q 'main: dist/index.js' free-action/action.yml
           git ls-files --error-unmatch free-action/dist/index.js
-      - name: Run community action
+
+  case-a-with-lockfile:
+    runs-on: ubuntu-latest
+    needs: verify-dist
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Prepare lockfile
+        run: npm --prefix demo/with-lock install
+      - name: Run community action (with lockfile)
         uses: ./free-action
+        with:
+          working_directory: demo/with-lock
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Verify comment posted
@@ -44,8 +54,48 @@ jobs:
               per_page: 100,
             });
             const match = comments.find((comment) => comment.body?.includes(tag));
-            if (!match) {
-              core.setFailed('Expected lint autofix comment to be posted or updated.');
+            if (!match || !match.body?.includes('demo/with-lock')) {
+              core.setFailed('Expected lint autofix comment to reference demo/with-lock.');
+            } else {
+              core.info(`Found comment: ${match.id}`);
+            }
+      - name: Confirm diff produced
+        run: |
+          git diff --name-only
+          git diff --name-only | grep -q 'demo/with-lock/src/bad-format.js'
+
+  case-b-no-lockfile:
+    runs-on: ubuntu-latest
+    needs: case-a-with-lockfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Ensure no lockfile
+        run: rm -f demo/package-lock.json
+      - name: Run community action (no lockfile)
+        uses: ./free-action
+        with:
+          working_directory: demo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify comment notes missing lockfile
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = '<!-- lint-autofix-community -->';
+            const { owner, repo } = context.repo;
+            const issueNumber = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+            const match = comments.find((comment) => comment.body?.includes(tag));
+            if (!match || !match.body?.includes('no package-lock.json found')) {
+              core.setFailed('Expected lint autofix comment to note missing lockfile.');
             } else {
               core.info(`Found comment: ${match.id}`);
             }
@@ -53,3 +103,41 @@ jobs:
         run: |
           git diff --name-only
           git diff --name-only | grep -q 'demo/src/bad-format.js'
+
+  case-c-missing-eslint-config:
+    runs-on: ubuntu-latest
+    needs: case-b-no-lockfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run community action (missing eslint config)
+        uses: ./free-action
+        with:
+          working_directory: demo/missing-eslint
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify comment notes missing eslint config
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = '<!-- lint-autofix-community -->';
+            const { owner, repo } = context.repo;
+            const issueNumber = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issueNumber,
+              per_page: 100,
+            });
+            const match = comments.find((comment) => comment.body?.includes(tag));
+            if (!match || !match.body?.includes('eslint.config')) {
+              core.setFailed('Expected lint autofix comment to note missing eslint config.');
+            } else {
+              core.info(`Found comment: ${match.id}`);
+            }
+      - name: Confirm diff produced
+        run: |
+          git diff --name-only
+          git diff --name-only | grep -q 'demo/missing-eslint/src/bad-format.js'

@@ -17,3 +17,6 @@ inputs:
   strict:
     description: Fail the action on command errors.
     default: "false"
+  working_directory:
+    description: Path to the working directory that contains the package.json.
+    default: "."
