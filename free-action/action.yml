@@ -20,3 +20,6 @@ inputs:
   working_directory:
     description: Path to the working directory that contains the package.json.
     default: "."
+    branding:
+  icon: check-square
+  color: green
