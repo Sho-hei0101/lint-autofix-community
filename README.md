@@ -42,7 +42,12 @@ jobs:
 
 This action runs your project’s local `eslint`/`prettier` via `npx --no-install`.
 If the tools are missing, it will post a comment explaining what is needed.
-It works even when your repository does not include a lockfile (falls back to `npm install`).
+It uses `npm ci` when a `package-lock.json` is present, otherwise it falls back to
+`npm install --no-audit --no-fund`. Committing a lockfile is recommended for
+repeatable installs.
+
+Note: config files like `eslint.config.js` can appear in the suggested diff
+because formatters/linters run to compute suggestions.
 
 ## Strict mode
 
@@ -59,6 +64,10 @@ Prettier fail. To fail the workflow on command errors, set:
 ```
 
 ## Troubleshooting
+
+### Syntax/parsing errors
+Syntax or parsing errors cannot be autofixed. Fix syntax errors first, then rerun
+the action.
 
 ### Missing package-lock.json
 If you do not commit a `package-lock.json`, the action will fall back to
@@ -109,3 +118,9 @@ npm run build
 
 - Community: comment-only suggestions, limited usage
 - Pro: auto-commit fixes, unlimited runs, org-wide policy, reporting
+
+## Known limitations (Community)
+
+- Comment-only suggestions (no commits)
+- Cannot fix syntax errors
+- Requires ESLint and/or Prettier installed in the target package
