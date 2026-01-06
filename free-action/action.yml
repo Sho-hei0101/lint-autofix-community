@@ -3,7 +3,7 @@ description: Run Prettier and ESLint with suggested fixes as a PR comment.
 author: Community
 
 branding:
-  icon: check-square
+  icon: check
   color: green
 
 runs:
