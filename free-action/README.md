@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -29,10 +30,10 @@ jobs:
 | Name | Default | Description |
 | --- | --- | --- |
 | max_files | "10" | Maximum number of files to list in the PR comment. |
-| run_eslint | "true" | Run ESLint --fix. |
-| run_prettier | "true" | Run Prettier --write. |
+| run_eslint | "true" | Whether to run ESLint --fix. |
+| run_prettier | "true" | Whether to run Prettier --write. |
 | strict | "false" | Fail the action on command errors. |
-| working_directory | "." | Path to the package.json to install and lint (monorepo support). |
+| working_directory | "." | Path to the working directory that contains the package.json. |
 
 ## Monorepo usage
 Point the action at the package you want to lint:
@@ -44,6 +45,10 @@ Point the action at the package you want to lint:
 ```
 
 ## Troubleshooting
+
+### Syntax/parsing errors
+Syntax or parsing errors cannot be autofixed. Fix syntax errors first, then rerun
+the action.
 
 ### Missing package-lock.json
 The action uses `npm ci` when `package-lock.json` is present. If it is missing,
@@ -58,6 +63,15 @@ enable ESLint fixes.
 ### Prettier not installed
 If Prettier is not available in dependencies, the action will skip it and note
 how to install it in the PR comment.
+
+### Config files appear in the diff
+Config files like `eslint.config.js` can appear in the suggested diff because
+formatters/linters run to compute suggestions.
+
+## Known limitations (Community)
+- Comment-only suggestions (no commits)
+- Cannot fix syntax errors
+- Requires ESLint and/or Prettier installed in the target package
 
 ## Community vs Pro
 - Community: comment-only suggestions, limited usage
