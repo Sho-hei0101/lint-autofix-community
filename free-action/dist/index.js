@@ -292,7 +292,9 @@ async function findExistingComment(octokit, repo, issueNumber) {
     per_page: 100,
   });
 
-  return comments.data.find((comment) => comment.body && comment.body.includes(COMMENT_TAG));
+  return comments.data.find((comment) =>
+    comment.body && comment.body.includes(COMMENT_TAG)
+  );
 }
 
 async function upsertComment(octokit, repo, issueNumber, body) {

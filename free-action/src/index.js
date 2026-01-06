@@ -1,6 +1,154 @@
-const core = require('@actions/core');
-const exec = require('@actions/exec');
-const github = require('@actions/github');
+const fs = require('fs');
+const { spawn } = require('child_process');
+
+const core = {
+  getInput(name, options = {}) {
+    const key = `INPUT_${name.replace(/ /g, '_').toUpperCase()}`;
+    const value = process.env[key] || '';
+    if (options.required && !value) {
+      throw new Error(`Input required and not supplied: ${name}`);
+    }
+    return value;
+  },
+  info(message) {
+    console.log(message);
+  },
+  warning(message) {
+    console.warn(message);
+  },
+  setFailed(message) {
+    console.error(message);
+    process.exitCode = 1;
+  },
+};
+
+const exec = {
+  exec(command, args = [], options = {}) {
+    return new Promise((resolve, reject) => {
+      const child = spawn(command, args, {
+        cwd: options.cwd || process.cwd(),
+        env: options.env || process.env,
+        shell: options.shell || false,
+      });
+
+      if (child.stdout) {
+        child.stdout.on('data', (data) => {
+          if (options.listeners && options.listeners.stdout) {
+            options.listeners.stdout(data);
+          }
+        });
+      }
+
+      if (child.stderr) {
+        child.stderr.on('data', (data) => {
+          if (options.listeners && options.listeners.stderr) {
+            options.listeners.stderr(data);
+          }
+        });
+      }
+
+      child.on('error', (error) => {
+        if (options.ignoreReturnCode) {
+          resolve(1);
+          return;
+        }
+        reject(error);
+      });
+
+      child.on('close', (code) => {
+        resolve(code ?? 0);
+      });
+    });
+  },
+};
+
+function readEventPayload() {
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!eventPath) return {};
+  try {
+    const raw = fs.readFileSync(eventPath, 'utf8');
+    return JSON.parse(raw);
+  } catch (error) {
+    core.warning(`Failed to read GITHUB_EVENT_PATH: ${error.message}`);
+    return {};
+  }
+}
+
+function resolveRepo() {
+  const repoEnv = process.env.GITHUB_REPOSITORY || '';
+  const [owner, repo] = repoEnv.split('/');
+  return { owner, repo };
+}
+
+async function requestGitHub({ token, method, url, body }) {
+  const apiUrl = process.env.GITHUB_API_URL || 'https://api.github.com';
+  const response = await fetch(`${apiUrl}${url}`, {
+    method,
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${token}`,
+      'User-Agent': 'lint-autofix-community-action',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`GitHub API error (${response.status}): ${text}`);
+  }
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  return response.json();
+}
+
+function createOctokit(token) {
+  return {
+    rest: {
+      issues: {
+        async listComments({ owner, repo, issue_number, per_page }) {
+          const data = await requestGitHub({
+            token,
+            method: 'GET',
+            url: `/repos/${owner}/${repo}/issues/${issue_number}/comments?per_page=${per_page}`,
+          });
+          return { data };
+        },
+        async updateComment({ owner, repo, comment_id, body }) {
+          const data = await requestGitHub({
+            token,
+            method: 'PATCH',
+            url: `/repos/${owner}/${repo}/issues/comments/${comment_id}`,
+            body: { body },
+          });
+          return { data };
+        },
+        async createComment({ owner, repo, issue_number, body }) {
+          const data = await requestGitHub({
+            token,
+            method: 'POST',
+            url: `/repos/${owner}/${repo}/issues/${issue_number}/comments`,
+            body: { body },
+          });
+          return { data };
+        },
+      },
+    },
+  };
+}
+
+const github = {
+  context: {
+    eventName: process.env.GITHUB_EVENT_NAME || '',
+    repo: resolveRepo(),
+    payload: readEventPayload(),
+  },
+  getOctokit(token) {
+    return createOctokit(token);
+  },
+};
 
 const HEADER = 'Lint Autofix (Community)';
 const COMMENT_TAG = '<!-- lint-autofix-community -->';

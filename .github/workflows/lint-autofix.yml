@@ -18,13 +18,6 @@ jobs:
           node-version: 20
 
       - name: Run Lint Autofix
-        if: ${{ github.repository == 'Sho-hei0101/lint-autofix-community' }}
-        uses: ./free-action
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Run Lint Autofix (released)
-        if: ${{ github.repository != 'Sho-hei0101/lint-autofix-community' }}
         uses: Sho-hei0101/lint-autofix-community/free-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
