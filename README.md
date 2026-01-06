@@ -116,8 +116,10 @@ npm run build
 
 ## Community vs Pro
 
-- Community: comment-only suggestions, limited usage
-- Pro: auto-commit fixes, unlimited runs, org-wide policy, reporting
+| Plan | Features |
+| --- | --- |
+| Community | Comment-only suggestions, limited usage |
+| Pro | Auto-commit fixes, unlimited runs, org-wide policy, reporting |
 
 ## Known limitations (Community)
 
