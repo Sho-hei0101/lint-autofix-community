@@ -27,7 +27,7 @@ jobs:
           node-version: 20
           cache: npm
       - name: Run Lint Autofix
-        uses: Sho-hei0101/lint-autofix-community/free-action@v1
+        uses: shichifuku-dev/lint-autofix-community@v1
         with:
           working_directory: .
         env:
