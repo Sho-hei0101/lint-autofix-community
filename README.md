@@ -1,13 +1,24 @@
-# Lint Autofix (Community)
+Lint Autofix (Community)
 
-Comment-only ESLint/Prettier autofix suggestions for pull requests.
-- Runs Prettier and/or ESLint in PRs
-- Posts a single PR comment with a diff
-- Never pushes commits
+Comment-only ESLint / Prettier autofix suggestions for public repositories.
 
-## Quickstart
+This GitHub Action analyzes pull requests and posts suggested fixes as a single comment.
+It never pushes commits and cannot operate on private repositories.
 
-```yaml
+⸻
+
+What this Action does
+	•	Runs ESLint and/or Prettier on pull requests
+	•	Posts one PR comment with a suggested diff
+	•	Never commits code
+	•	Designed for public repositories only
+
+This is the free Community edition of Lint Autofix Pro.
+
+⸻
+
+Quickstart
+
 name: Lint Autofix (Community)
 on:
   pull_request:
@@ -32,97 +43,86 @@ jobs:
           working_directory: .
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
 
-## Requirements
-- A `package.json` in the working directory (defaults to the repo root).
-- ESLint and/or Prettier installed in that package (devDependencies recommended).
-- Node.js 20 (use `actions/setup-node`).
-- `GITHUB_TOKEN` with `pull-requests: write` and `issues: write`.
 
-This action runs your project’s local `eslint`/`prettier` via `npx --no-install`.
-If the tools are missing, it will post a comment explaining what is needed.
-It uses `npm ci` when a `package-lock.json` is present, otherwise it falls back to
-`npm install --no-audit --no-fund`. Committing a lockfile is recommended for
-repeatable installs.
+          
+⸻
 
-Note: config files like `eslint.config.js` can appear in the suggested diff
-because formatters/linters run to compute suggestions.
+Requirements
+	•	A package.json in the working directory (defaults to repository root)
+	•	ESLint and/or Prettier installed (devDependencies recommended)
+	•	Node.js 20
+	•	GITHUB_TOKEN with:
+	•	pull-requests: write
+	•	issues: write
+	•	contents: read
 
-## Strict mode
+This action runs your local ESLint/Prettier via npx --no-install.
 
-By default (`strict: "false"`), the workflow stays green even if ESLint or
-Prettier fail. To fail the workflow on command errors, set:
+⸻
 
-```yaml
-      - name: Run Lint Autofix
-        uses: Sho-hei0101/lint-autofix-community/free-action@v1
-        with:
-          strict: "true"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
+Important limitation (by design)
 
-## Troubleshooting
+🔒 Public repositories only
+	•	This Community action does not run on private repositories
+	•	If a repository is made private after using this action, it will stop working
+	•	Switching a repository from public → private does NOT unlock Pro features
 
-### Syntax/parsing errors
-Syntax or parsing errors cannot be autofixed. Fix syntax errors first, then rerun
-the action.
+Private repository support is exclusive to Lint Autofix Pro (GitHub App).
 
-### Missing package-lock.json
-If you do not commit a `package-lock.json`, the action will fall back to
-`npm install --no-audit --no-fund`. For faster, repeatable installs, commit a
-lockfile.
+⸻
 
-### ESLint v9 requires eslint.config.*
-If you are on ESLint v9 and do not have `eslint.config.js`/`mjs`/`cjs` in the
-working directory, ESLint will be skipped (or fail in `strict: "true"`). Add a
-flat config file to enable ESLint fixes.
+Community vs Pro
 
-### Permissions errors
-Ensure your workflow has:
-- `contents: read`
-- `pull-requests: write`
-- `issues: write`
+| Plan | Designed for | Key difference |
+|------|-------------|----------------|
+| Community (Action) | OSS / public repos | Comment-only suggestions (no write access) |
+| Pro (GitHub App) | Teams / private code | Write access to repos (auto-commit fixes) |
 
-## Permissions
 
-This action comments on pull requests, so it needs:
-- `pull-requests: write`
-- `issues: write`
-- `contents: read`
+What Pro adds (not available here)
+	•	Works on private repositories
+	•	Automatically commits fixes to PR branches
+	•	Unlimited usage
+	•	Organization-wide policies
+	•	Centralized reporting and audit logs
 
-## Version pinning
+👉 Pro is delivered as a GitHub App, not an Action.
 
-Use `@v1` for the latest v1 release. For stricter pinning, you can use a full tag
-like `@v1.0.0`.
+⸻
 
-## Development
+Strict mode (optional)
 
-```bash
-cd free-action
-npm install
-npm run build
-# Commit free-action/dist after rebuilding
-```
+By default, the workflow stays green even if ESLint/Prettier fail.
 
-## Release
+To fail the workflow on errors:
 
-1. Ensure `free-action/dist` is rebuilt and committed.
-2. Create/refresh the tag:
-   - Update the major tag to point at the release commit: `git tag -f v1`
-   - Optionally add a full version tag: `git tag v1.0.0`
-3. Push tags: `git push origin v1 --force` and `git push origin v1.0.0`
+- name: Run Lint Autofix
+  uses: shichifuku-dev/lint-autofix-community@v1
+  with:
+    strict: "true"
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-## Community vs Pro
 
-| Plan | Features |
-| --- | --- |
-| Community | Comment-only suggestions, limited usage |
-| Pro | Auto-commit fixes, unlimited runs, org-wide policy, reporting |
+⸻
 
-## Known limitations (Community)
+Known limitations (Community)
+	•	Comment-only suggestions (no commits)
+	•	Cannot fix syntax/parsing errors
+	•	Requires ESLint and/or Prettier installed in the target package
+	•	Public repositories only
 
-- Comment-only suggestions (no commits)
-- Cannot fix syntax errors
-- Requires ESLint and/or Prettier installed in the target package
+⸻
+
+When should you upgrade?
+
+If any of the following are true, Community is intentionally insufficient:
+	•	You use private repositories
+	•	You want fixes automatically committed
+	•	You manage multiple repositories or an organization
+	•	You need usage tracking or enforcement
+
+➡️ Use Lint Autofix Pro.
+
+  
