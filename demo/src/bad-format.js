@@ -1,2 +1,2 @@
-const  message={text:"hello",count:1}
-console.log(message)
+const   message={text:"hello",count:1}
+console.log(  message )
