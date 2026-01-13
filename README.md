@@ -1,4 +1,4 @@
-Lint Autofix (Community)
+##Lint Autofix (Community)
 
 Comment-only ESLint / Prettier autofix suggestions for public repositories.
 
@@ -7,7 +7,7 @@ It never pushes commits and cannot operate on private repositories.
 
 ⸻
 
-What this Action does
+##What this Action does
 	•	Runs ESLint and/or Prettier on pull requests
 	•	Posts one PR comment with a suggested diff
 	•	Never commits code
@@ -17,7 +17,7 @@ This is the free Community edition of Lint Autofix Pro.
 
 ⸻
 
-Quickstart
+##Quickstart
 
 name: Lint Autofix (Community)
 on:
@@ -48,7 +48,7 @@ jobs:
           
 ⸻
 
-Requirements
+##Requirements
 	•	A package.json in the working directory (defaults to repository root)
 	•	ESLint and/or Prettier installed (devDependencies recommended)
 	•	Node.js 20
@@ -61,7 +61,7 @@ This action runs your local ESLint/Prettier via npx --no-install.
 
 ⸻
 
-Important limitation (by design)
+##Important limitation (by design)
 
 🔒 Public repositories only
 	•	This Community action does not run on private repositories
@@ -72,7 +72,7 @@ Private repository support is exclusive to Lint Autofix Pro (GitHub App).
 
 ⸻
 
-Community vs Pro
+##Community vs Pro
 
 | Plan | Designed for | Key difference |
 |------|-------------|----------------|
@@ -91,7 +91,7 @@ What Pro adds (not available here)
 
 ⸻
 
-Strict mode (optional)
+##Strict mode (optional)
 
 By default, the workflow stays green even if ESLint/Prettier fail.
 
@@ -107,7 +107,7 @@ To fail the workflow on errors:
 
 ⸻
 
-Known limitations (Community)
+##Known limitations (Community)
 	•	Comment-only suggestions (no commits)
 	•	Cannot fix syntax/parsing errors
 	•	Requires ESLint and/or Prettier installed in the target package
@@ -115,7 +115,7 @@ Known limitations (Community)
 
 ⸻
 
-When should you upgrade?
+##When should you upgrade?
 
 If any of the following are true, Community is intentionally insufficient:
 	•	You use private repositories
